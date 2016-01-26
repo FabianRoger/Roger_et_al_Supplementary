@@ -1,9 +1,6 @@
 # Roger_et_al_Supplementary
 Code and Data accompanying the manuscript roger et al, submitted to Ecology 2016-01-26
 
-
-Roger et al. - Appendix_2
-
 This folder contains all the code necessary to reproduce the analysis and figures that are
 presented in the manuscript and the supplementary material. It also contains the necessary 
 raw data , except for the sequencing data which are not provided (due to file size) and 
