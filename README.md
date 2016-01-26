@@ -12,6 +12,8 @@ that upon request.
 The file 'Processing of Sequencing Data.Rmd' contains the full (but not executable) code 
 for the analysis of the sequencing data. 
 
+**download the directory as zipped folder and save it locally**
+
 
 + **1) to run the code please open the Roger_et_al.Rproj file**
 
