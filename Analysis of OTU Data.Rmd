@@ -1,0 +1,351 @@
+---
+title: "Analysis of OTU Data"
+author: "Fabian Roger"
+date: "27 Nov 2015"
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    latex_engine: lualatex
+    toc: yes
+---
+
+__this script imports:__ 
+
++ OTU_docs/OTU_clean.txt        *cleaned OTU table (only Bacteria)*
++ OTU_docs/TAX_clean.txt        *cleaned Taxonomic table*
++ OTU_docs/OTU97_um.tre         *ultrametric tree*
++ ID.txt                        *sample meta-data*
+   
+__this script does:__
+
+  + some summary statistics 
+  + sensitivity analysis of diversity metrics to rarefaction
+  + calculates effective number of species
+  + calculates phylogenetic diversity
+  + plots heatmaps of dominant OTUs
+  
+__this script exports:__
+  
+  data frames:
+  
+  + OTU_docs/DIV.txt      *effective number of species and phylogenetic diversity based on hill numbers*
+  
+  figures:
+  
+  + figures/Figure_2.pdf  *heatmap of average abundance of most common OTUs*
+  + figures/Figure_S_3.pdf *diveristy estimation at different rarefaction*
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+
+
+```{r}
+require(entropart)
+require(phyloseq)
+require(picante)
+require(dplyr)
+require(ggplot2)
+require(tidyr)
+```
+
+
+Read in the relevant files:
+```{r}
+OTU <- read.table("OTU_docs/OTU_clean.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+TAX <- read.table("OTU_docs/TAX_clean.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+TREE <- read.tree("OTU_docs/OTU97_um.tre")
+ID <- read.table("ID.txt")
+
+ID$Lake <- factor(ID$Lake, levels = c("Botan", "Delsjön", "Lerum", "Surtesjön"), labels = c("Lake 1", "Lake 2", "Lake 3", "Lake 4"))
+
+```
+
+### seqeuncing depth 
+
+Looking at the sequencing depth of the OTU data:
+
+```{r, fig.width=5, echo=FALSE}
+OTU[, -1] %>% colSums %>% sort(., decreasing = T) %>% plot
+OTU[, -1] %>% colSums %>% hist(.,breaks = function(x) seq(0, max(x)+1000, 1000), main = "sequencing depth\nbinwidth = 1000")
+OTU[, -1] %>% colSums %>% summary
+```
+
+We can see that the sequencing depth is quite variable and some samples have very low coverage. 
+
+```{r}
+colSums(OTU[,-1])[which(colSums(OTU[,-1]) < 1000)]
+ID[ID$gbgID %in% names(which(colSums(OTU[,-1]) < 1000)), ]
+
+```
+
+The two samples with the lowest coverage (see above) have below <1000 reads per sample. Both samples are from the first sampling day and represent a sterile control and one lowest dilution respectively. especially `gbg12` has only 24 reads and needs to be excluded. 
+
+### sensitivity of diveristy estimation to sequencing depth
+
+For the remaining data set, we want to test whether the diversity estimate is sensitive to the sampling depth to see whether we need to exclude more samples. Below, we rarefy the data set to following depth `r seq(1e3,1e4,2e3)`, calculate the effective number of species and correlate the results.
+
+We calculate the effective number of species of order 1, corresponding to the exponential of the Shannon entropy. For this test we don't apply any bias correction.
+
+```{r, include=FALSE, eval=TRUE}
+
+rownames(OTU) <- OTU$OTU.ID
+OTU <- OTU[,-1]
+
+DIV.res <- vector("list")
+
+DivSeq <- seq(1e3,1e4,3e3)
+
+for (i in 1:4) {
+  R <- DivSeq[i]
+  OTU_t <- rrarefy(t(OTU[, colSums(OTU) >= R]), R)
+  MC <- MetaCommunity(t(OTU_t))
+  DIV.res[[i]] <- AlphaDiversity(MC, Correction = "None")$Communities  %>% 
+    data.frame( DIV = .) %>% 
+    add_rownames( var = "gbgID")
+  colnames(DIV.res[[i]]) <- c("gbgID", paste("DIV", R, sep = "_"))
+  
+}
+
+
+MC <- MetaCommunity(OTU)
+
+DIV.res[[5]] <- AlphaDiversity(MC, Correction = "None")$Communities  %>% 
+    data.frame( DIV = .) %>% 
+    add_rownames( var = "gbgID")
+  colnames(DIV.res[[5]]) <- c("gbgID", "DIV_full")
+
+DIV <- (Reduce(function(...) merge(..., all=T), DIV.res))
+
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r <- abs(cor(x, y, use = "pairwise.complete.obs", method = "pearson"))^2
+    txt <- format(c(r, 0.123456789), digits = 3)[1]
+    txt <- paste0(prefix, txt)
+    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+```
+```{r, echo=FALSE, eval=TRUE}
+pdf("figures/Figure_S_3.pdf")
+pairs(DIV[,-1], lower.panel = panel.smooth, upper.panel = panel.cor, main = "diveristy estimation at different rarefaction")
+dev.off()
+```
+
+We can see that the effective number of species is insensitive to sequencing depth and that the results are virtually identical irrespective of the rarefaction level or whether we use the full data set, with or without correction. The only exception is that the correction estimates high diversity for the sample `gbg12` that has only 12 reads. With such low reads, no diversity estimate can be trusted. We thus exclude that particular read.  
+
+It is, however, unnecessary to exclude any other sample than `gbg12`. 
+
+In an attempt to reduce a possible sampling bias, but without unnecessarily discarding data, we choose the following approach:
+
++ all samples with more than 10000 reads (`r length(which(colSums(OTU) >= 10000))` samples) are rarefied to 10000 reads.
+
++ all samples with below 10000 reads (`r length(which(colSums(OTU) < 10000))` samples) are kept as is. 
+
++ no correction is applied, because until now it is not clear if correction is accurate for sequencing data (that may contain biased estimates of singletons and doubletons as singletons have been excluded and doubletons may also represent spurious OTUs).
+
++ the above mentioned rules are applied to both estimates, with and without the incorporation of phylogenetic diversity.
+
+### effective number of species
+
+```{r}
+
+# wrapper function for vegan::rrarefy to rarefy only samples with sequencing depth > S
+# assumes samples as columns
+
+rarS <- function(x, S) {
+  xR <- rrarefy( t( x[ , colSums( x) > S]), S)
+  xR <- t(xR)
+  x[, match(colnames(xR), colnames(x))] <- xR
+  return(x)
+}
+
+OTU_r <- OTU %>% 
+  select( -gbg12) %>%
+  rarS( S = 10000) 
+
+MC <-   MetaCommunity(OTU_r)
+
+DIV <- AlphaDiversity(MC, q = 1, Correction="None")$Communities %>%
+  data.frame( effN = .) %>% 
+  add_rownames( var = "gbgID") %>% 
+  left_join(ID, .)
+```
+
+Let's have a look at the calculated diversity levels:
+
+```{r, echo = FALSE}
+
+ggplot(DIV, aes(x = DIL, y = effN, colour = Lake, group = Lake))+
+  geom_point()+
+  stat_smooth(method = "lm", se = F)+
+  facet_wrap(~Sampling * Lake)+
+  scale_y_log10(breaks = c(2,4,8,16,32))+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))+
+  labs( x = "Dillution factor", y= "alpha diversity (q = 1)", title = "effective number of species")
+```
+
+### phylogenetic diveristy
+
+```{r, eval=TRUE}
+
+DIV <- AlphaDiversity(MC, q = 1, Tree = TREE, Correction="None")$Communities %>%
+  data.frame( PD = .) %>% 
+  add_rownames( var = "gbgID") %>% 
+  left_join(DIV, .)
+
+```
+
+```{r, echo = FALSE, eval=TRUE}
+
+ggplot(DIV, aes(x = DIL, y = PD, colour = Lake, group = Lake))+
+  geom_point()+
+  stat_smooth(method = "lm", se = F)+
+  facet_wrap(~Sampling * Lake)+
+  scale_y_log10(breaks = c(2,4,8,16,32))+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))+
+  labs( x = "Dillution factor", y= "phylogenetic diversity (q = 1)", title = "effective number of species completely distinct species")
+```
+ 
+Export table with diversity metrics:
+
+```{r, eval=TRUE}
+DIV <- select(DIV, - gbgID)
+write.table(DIV, "OTU_docs/DIV.txt", sep="\t")
+
+```
+
+### heatmap of OTU composition
+
+To visualize the distribution of OTUs in the different dilutions/lakes, we produce a heatmap. Since we cannot possibly represent all OTUs, we only look at the OTUs that make up **at least 1 % of the total reads** in **at least 1 sample**
+
+As we work with proportions, we take the unrarefied OTU table and only exclude the sample `gbg12`:
+
+```{r, echo = F, fig.height=24, fig.width=12}
+# to keep as much taxonomic information as possible we carry over the TAX ID's to lower levels for those OTU'S where a lower-level
+# assignemnt isn't possible
+
+rownames(TAX) <- TAX$OTU.ID
+TAX <- select(TAX, -OTU.ID) %>% as.matrix
+
+for (i in 2:ncol(TAX)){
+  WT <- which( is.na( TAX[ ,i]))
+  TAX[WT, i] <- paste(colnames(TAX)[i-1], TAX[WT, i-1], sep = ":")
+  TAX[WT, i] <- gsub(".+(\\w:\\w\\w)", "\\1", TAX[WT, i] )
+}
+
+
+rownames(ID) <- ID$gbgID
+
+# subset and transform OTU table
+OTUp <- OTU[, which(colnames(OTU) != "gbg12")] # exclude sample with too many reads
+OTUp <- apply(OTUp, 2, function(x) (x / sum( x)) * 100) # transform reads into percentages
+
+# subset to OTUs that have min 1% of abundance in at least 1 sample
+OTU_1p <- which( apply(OTUp, 1, function(x) max(x) >= 1) == TRUE) # list of OTUs
+
+
+Phy_obj <- phyloseq(otu_table(OTUp[ OTU_1p, ], taxa_are_rows = TRUE),
+                    tax_table(TAX),
+                    phy_tree(TREE),
+                    sample_data(ID))
+
+
+
+Phy_obj@sam_data$Sampling <- factor(Phy_obj@sam_data$Sampling, levels = c("14.06", "28.06", "12.07"))
+
+HeatMap_1p <- plot_heatmap(Phy_obj,
+                           distance = "bray",
+                           sample.label = "DIL", 
+                           taxa.label = "o",
+                           sample.order = ID[with(ID, order(Lake, DIL)),]$gbgID)
+
+HeatMap_1p + 
+  facet_wrap(Lake~Sampling, scales = "free_x", ncol = 3) +
+  labs(x = "Dilution factor", y = "order of OTU",
+       title = "heatmap of OTUs (> 1% reads in ≥ 1 sample)")+
+  theme_bw(base_size = 8)
+```
+
+
+To get a clearer picture of the differences between the lakes, we look at the average abundance of each OTU, over the three sampling dates. 
+
+```{r, echo = FALSE, fig.height=12, fig.width=10}
+
+avOTU <- OTU %>%
+  select(-gbg12) %>% 
+  as.data.frame %>% 
+  add_rownames(var = "OTU.ID") %>% 
+  gather(key = gbgID, value = Abundance, -OTU.ID) %>% 
+  left_join(ID) %>%
+  group_by(OTU.ID, Lake, DIL) %>% 
+  summarise(Abundance = mean(Abundance)) 
+
+avOTU <- ID %>% 
+  group_by(Lake, DIL) %>% 
+  summarise(gbgID = sample(gbgID,1)) %>% 
+  left_join(avOTU, .) %>% 
+  ungroup %>% 
+  select(OTU.ID, Abundance, gbgID) %>% 
+  spread(key = gbgID, value = Abundance)
+
+row.names(avOTU) <- avOTU$OTU.ID
+avOTU <- select(avOTU, -OTU.ID)
+
+avOTUp <- apply(avOTU, 2, function(x) (x / sum( x)) * 100) # transform reads into percentages
+avOTU_1p <- which( apply(avOTUp, 1, function(x) max(x) >= 1) == TRUE) # list of OTUs
+
+Phy_obj_av <- phyloseq(otu_table(avOTUp[ avOTU_1p, ], taxa_are_rows = TRUE),
+                    tax_table(TAX),
+                    phy_tree(TREE),
+                    sample_data(ID))
+
+
+SampOrd <- 
+  ID %>% 
+  filter(gbgID %in% sample_names(Phy_obj_av)) %>% 
+  arrange(Lake, DIL) %>% 
+  select(gbgID) %>% 
+  .$gbgID %>% 
+  as.character()
+
+HeatMap_1p <- plot_heatmap(Phy_obj_av,
+                           distance = "bray",
+                           taxa.label = "o",
+                           sample.order = SampOrd,
+                           sample.label = "DIL")
+
+HeatMap_1p$scales$scales[[1]]$name <- "exponent of dilution factor"
+HeatMap_1p$scales$scales[[2]]$name <- "order of OTU or lowest confident rank-assignment"
+HeatMap_1p$labels$fill <- "Abundance\nin %"
+
+HeatMap_1p <- 
+HeatMap_1p + 
+  facet_wrap(~Lake, scales = "free_x", nrow = 1) +
+  theme_bw(base_size = 12)+
+  scale_fill_gradient(limits = c(0.01,100), 
+                      low = "#252525",
+                      high = "#f7f7f7",
+                      na.value = "black", 
+                      trans = "log2",
+                      breaks = c(0.01,0.04, 0.16, 1, 4, 16, 64))+
+  ggtitle("heatmap of abundant OTUs")+
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+HeatMap_1p
+
+ggsave(plot = HeatMap_1p, "figures/Figure_2.pdf", height = 12, width = 12)
+```
+
+
+

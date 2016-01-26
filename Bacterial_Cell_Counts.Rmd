@@ -1,0 +1,545 @@
+---
+title: "Analysis of Bacterial Cell Yield Data"
+author: "Fabian Roger"
+date: "9 Oct 2015"
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    latex_engine: lualatex
+    toc: yes
+---
+
+In this document we describe step 1 of the data analysis for the article **Roger et al (YEAR)**
+In order to ensure reproducability, we use the package "checkpoint"
+
+This is the first out of X documents.  
+
+__this script imports:__ 
+
++ FlowCytoDocs/Bacterial_counts.txt       #raw flow cytometry reading of bacterial cell abundances
++ FlowCytoDocs/Timestamps_BacCounts.txt   #timestamps of file readings
++ FlowCytoDocs/TrueCounts_main.txt.txt    #flow cyt. counts of truecounts as absolute reference
++ FlowCytoDocs/TrueCounts_0614_HF.txt     #truecount reference for one sample that has been read at different flowrate
++ FlowCytoDocs/Timestamps_TrueCounts.txt  #timestamp of truecount readings
++ FlowCytoDocs/TrueCount Reference.txt    #file that assigns the Truecounts to respective samples
+  
+__this script does:__
+
+  + quality control 
+  + bias correction
+  + calculates maximum biomass per sample
+  + calculates temporal stability
+
+
+__this script exports:__
+  
+  data frames:
+  
+  + response_var/maxBM.txt        #maximum cell counts
+  + response_var/Stability.txt    #temporal stability of the cell counts
+  
+  figures:
+  + figures/Fig_S_4.pdf           #growth curves
+  
+  
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+
+```{r, echo = FALSE}
+require(tidyr)
+require(dplyr)
+require(ggplot2)
+
+```
+
+
+
+the Gating:
+
+[extract from my lab-book]
+
+> I re-gate the data, based on a dot plot, a density plot showing 95% of the dots and 2 3D histograms. The aim is to gate everything besides the cluster in the lower left corner that is unlikely to be bacteria but some kind of “trash” (or viruses?). I will change the gate as little as possible. [...] The Batch count is done [...] with a file increament of 48, hence counting one Bottle chronologically at the time (to be consistent with the gating within one bottle). The Stats are exported in “Bac Counts DivTox 2nd counting”.
+  
+![example of a flow cytometry reading with the bacteria and bead gates](FlowCytoDocs/flowcyto_example_gate.png)  
+Example of the flow cyto gating. The upper graph shows the dot plot and the lower graph the density plot.
+
+First, we import the file, clean it and have a look at it.
+
+```{r, echo=FALSE}
+Bac <- read.table("FlowCytoDocs/Bacterial_counts.txt", header=T, sep="\t")
+
+# keep and rename only necessary columns
+Bac <- Bac[ , c( "File.Name", "Acquisition.Date", "Label", "Events" )]
+colnames( Bac ) <- c( "FileN", "Acq.Date", "Gate", "Ev")
+
+### transpose data.frame ###
+Bac <- spread( Bac, Gate, Ev) 
+head(Bac, 2)
+
+```
+
+The `$Gate` column of the file contains two gates, Gate __G1__ correspond to region 
+__R1__ in the in the picture above and gates the beads that were added as internal standard.
+
+The Gate __G2__ correspond to region __R2__ and gates the bacterial cells.
+
++ I split up the information contained in the `$FileN` locum into three new columns
+    + `$SO` is the sampling occasion ( 01 - 21) 
+    + `$DAT` is the sampling date (02/06 to 12/07)
+    + `$BOT` is the number of the bottle that was sampled (01 - 48)
++ I add a lake column `$Lake` to group the bottles into the respective lakes
++ I add a column with the dilution factor for each bottle (`$DIL`)  
+
+The dilution factor represent the exponent of the dilution. Each dilution step was \~ 1 : 4.5. 
+So the 10^th^ dilution would be a 1 : 4.5^10^ dilution and the dilution factor
+would be 10.  
+The experiment had 10 dilution factors (0 - 10), and a sterile control. As
+the sterile control got invaded by (assumingly) environmental bacteria, we included it as treatment.  
+
+```{r, echo=FALSE}
+
+# splitting the columns
+Bac$SO <- substr( Bac[,1],1,2)
+Bac$DAT <- substr( Bac[,1],4,8)
+Bac$BOT <- substr( Bac[,1],10,11)
+
+# adding Lake column
+b <- as.character( formatC( c( 1:48), width=2, flag=0))
+
+Bac$Lake[ Bac$BOT %in% b[ 1:12] ]  <-  "Lake 4"
+Bac$Lake[ Bac$BOT %in% b[ 13:24]]  <-  "Lake 2"
+Bac$Lake[ Bac$BOT %in% b[ 25:36]]  <-  "Lake 3"
+Bac$Lake[ Bac$BOT %in% b[ 37:48]]  <-  "Lake 1"
+
+# adding DIL column
+n <- c( rep( c( 0, formatC( c( 1:10), width=2, flag=0), "S"), 4))
+
+for ( i in 1:48){
+  Bac$DIL[ Bac$BOT == b[ i]] <-  n[ i] }
+
+```
+```{r}
+head(Bac[ , -1], 2)
+```
+
+
+##checking the beads
+
+We added 50µl of 1µm fluorescent beads solution with a known concentration into 
+each sample as internal standard. The bead solution was sonnicated thoroughly at the beginning of each day and between each batch. However, the beads might have aggregated during the day or, to the contrary, aggregates that formed over night might have been broken up more and more during subsequent sonications. Both effect potentially biased the cell counts. To determine the concentration of the bead solution at the beginning of the day and after every second batch, we counted the beads with an absolute standard, BD Trucount^TM^ Tubes, containing exactly 52187 beads. 
+
+In the following section, we used the exact timestemp of each raw flow cytometry file to asses biases over a day.  
+
+```{r, include=FALSE}
+# load time stamp File
+FileT <- read.table( "FlowCytoDocs/Timestamps_BacCounts.txt", header = T, sep = "\t")
+
+#add the time stamp of each file to the Bac
+Bac <- left_join(Bac, FileT)
+
+#replace Acq.Date with Date from Timestemp and replace ctim with time from
+#timestemp
+Bac$Acq.Date <- substr( Bac$ctim, 1, 10)
+Bac$ctim <- substr( Bac$ctim, 11, 19)
+
+#transform to POSIXct
+Bac$ctim <- as.POSIXct( strptime( Bac$ctim, "%H:%M:%S"))
+
+# I always read 24 samples in 1 rack. to visualise the racks in the
+# graph I add column "Rack" where bottle N 01-24 are assigen "a"
+# and bottle N 25-48 are assigned "b". I order the dataframe by aquisition date and
+# time and subsequnetly add a column alternating  24 x "a" and 24 x "b", 21 times 
+# (= number of racks in total)
+
+Bac <- Bac[with(Bac, order(Acq.Date, ctim)),]
+Bac$Rack <- rep( c( rep( "a", 24), rep( "b", 24)), 21)
+```
+
+To visually check for biases, we plot the bead counts of each file against it's
+acquisition time, split by acquisition day. To visualize the batches, we alternate
+the colors every 24 samples ( = the size of 1 batch ). 
+
+```{r, echo=FALSE, fig.width=6, fig.height=6}
+ggplot( Bac,  aes( x = ctim, y = G1, colour = Rack)) +
+  geom_point( size = 1) +
+  facet_wrap( ~Acq.Date, scales  =  "free_x") +
+  geom_smooth( method  =  "lm",  se = TRUE,  color = "black",  formula  =  y ~ x)+
+  labs( title  = "Bead concentration over time, by day",
+        y = "Beads",
+        x = "aquisition time of sample")+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        legend.position = "none")
+```
+
+Looking at the graph above, it looks like the bead counts go up over the course of 
+a day. While it is normal that the flow rate of the flow-cytometer varies randomly (as can be seen by the spread of the bead counts within each batch), the increase of the bead counts over the course of a day indicates that __concentration__ of the bead solution changed. We have the BD Trucount^TM^ counts to correct for this bias:
+   
+```{r, include = F}
+# The Truecounts are in two different files
+# the first files are only the TC form the 2013-09-10 that were
+# counted on high flow. They corrspond to the Bac counts 06/14 1-24. 
+# the second files are all the other TC
+
+TrueC <- read.table( "FlowCytoDocs/TrueCounts_main.txt",  header = T,  sep = "\t")
+TrueC2 <- read.table( "FlowCytoDocs/TrueCounts_0614_HF.txt", sep = "\t", header = T)
+
+# keep only relevant columns
+TrueC <- TrueC[ , c("File.Name", "Sample.ID", "Acquisition.Date", "Label", "Events")]
+TrueC2 <- TrueC2[ , c("File.Name", "Sample.ID", "Acquisition.Date", "Label", "Events")]
+
+# dataframes are merged and all the TC from True2 are kept
+TrueC <- rbind( TrueC, TrueC2)
+
+#transpose dataframes
+TrueC <- spread( TrueC, Label, Events)
+
+# add absolute count column (each Trucount tube contains exactly 52187 beads)
+TrueC$TC <- 52187
+
+# calculate bead C ( BeadC) in the tube with G1 and G2 ( ( TC/G2)*G1)
+# G1 and G3 are slighty differnt gates to gate the beads, G2 and G4 are 
+# slightly different gates to gate the Trucount beads
+TrueC$BeadC <- ( TrueC$TC / TrueC$G2) * TrueC$G1
+
+# import time stemp for Truecounts
+FileT1 <- read.table( "FlowCytoDocs/Timestamps_TrueCounts.txt", header = T, sep = "\t")
+
+# add time stempt to "True"
+colnames( FileT1)[ 1] <- "File.Name"
+TrueC <- left_join( TrueC, FileT1)
+
+# replace Acquisition.Date by date from time stemp and add time column
+TrueC$Acquisition.Date <- substr( TrueC$ctim, 1, 10)
+TrueC$ctim <- substr( TrueC$ctim, 11, 19)
+
+# replace Acq.Dat and ctim for 2012-09-10 
+#### the documentation of why this is necessary and legit has unfortunately been lost. 
+TrueC[ 22, 3] <- "2012-09-10"
+TrueC[ 22, 10] <- "15:00:00"
+
+# transform to POSIXct
+TrueC$ctim <- as.POSIXct( strptime( TrueC$ctim, "%H:%M:%S"))
+
+# import reference file ( which Truecount to which samples)
+TrueRef <- read.table( "FlowCytoDocs/TrueCount Reference.txt", header = T, sep = "\t")
+
+# add DAT column (to be mastched with Bac later)
+TrueRef$DAT <- substr( TrueRef$TC.ID, 1,5)
+TrueRef$DAT <- as.POSIXct(strptime( paste("2012", TrueRef$Date, sep = "/"), format = "%Y/%m/%d",tz = "GMT"))
+                       
+# match the right True counts from TrueC to TrueRef
+colnames( TrueRef)[ which( colnames( TrueRef) == "TC.ID")] <- "File.Name"
+TrueRef <- left_join(TrueRef,TrueC)
+
+# subset for necessary columns
+TrueRef <- TrueRef[, c("Sample", "DAT", "BeadC")]
+
+# Expand TruRef Data so that it can be matched to Bac
+TrueList <- split(TrueRef, 1:nrow(TrueRef))
+
+expFunc <- function(x) { 
+  if (x$Sample == "1-24") {
+    df <- data.frame(Sample = x$Sample,
+                     DAT = x$DAT,
+                     BeadC = x$BeadC,
+                     BOT = formatC( c( 1:24), width=2, flag=0))
+    return(df)
+    }
+  if (x$Sample == "1-48") {
+    df <- data.frame(Sample = x$Sample,
+                     DAT = x$DAT,
+                     BeadC = x$BeadC,
+                     BOT = formatC( c( 1:48), width=2, flag=0))
+    return(df)
+    }
+  if (x$Sample == "25-48") {
+    df <- data.frame(Sample = x$Sample,
+                     DAT = x$DAT,
+                     BeadC = x$BeadC,
+                     BOT = formatC( c( 25:48), width=2, flag=0))
+    return(df)
+    }
+  }
+
+
+TrueList <- lapply(TrueList, expFunc)
+
+TrueRefExpanded <- do.call("rbind", TrueList)
+
+# reformat the DAT column in Bac to match the (correct) date format in TrueRefExpanded
+Bac$DAT <- as.POSIXct(strptime( paste("2012", Bac$DAT, sep = "/"), format = "%Y/%d/%m", tz = "GMT"))
+
+# join the corrected bead concentration to the Bac dataframe
+Bac <- left_join( Bac,TrueRefExpanded)
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=6}
+ggplot( Bac,  aes( x = ctim, y = G1*( min( BeadC)/BeadC), colour = Rack))+
+  geom_point( size = 1) +
+  facet_wrap( ~Acq.Date, scales  =  "free_x") +
+  geom_smooth( method  =  "lm",  se = TRUE,  color = "black",  formula  =  y ~ x)+
+  labs( title  = "standardized bead concentration over time, by day",
+        y = "standardized beads",
+        x = "aquisition time of sample")+
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        legend.position = "none")
+```
+
+As we can see from the corrected bead counts above, the upwards trend disappeared. We conclude from that, that they standardization by the Trucounts^TM^ worked. 
+
+Looking at the graph above, we can also see, that some bead counts are way below the average. To decide whether to exclude those points, we proceed with an outlier analysis. 
+
+```{r, echo=FALSE}
+BEAD <- Bac$G1*( min( Bac$BeadC)/Bac$BeadC)
+
+ggplot( data.frame(BEAD),  aes( x = BEAD))+
+   geom_histogram(aes(y = ..density..), alpha = 0.5, binwidth = 50) +  
+   geom_line(aes(y = ..density.., colour = 'Empirical'), stat = 'density', linetype = "dashed") +
+  stat_function(fun = dnorm, args = list(mean = mean(BEAD), sd = sd(BEAD)),
+                aes(colour = 'Normal'))+
+  scale_colour_manual(name = 'Density', values = c('darkred', 'darkblue')) +
+  labs(title = "histogram of bead counts",
+       x = "bead counts",
+       y= "probablity")+
+  theme_bw()
+```
+
+The distribution of the standardized bead counts looks normal, with 3 clear outliers. Let's look at which samples these outliers represent.
+
+```{r}
+W <- which( Bac$G1 <= ( mean(BEAD) - 3 * sd( BEAD)))
+Bac[W, c("DAT", "Lake", "DIL", "G1", "G2", "BeadC") ]
+```
+
+For `r as.character(Bac$DAT[W[1]])` there are (almost) no bacterial counts
+and no bead counts. We exclude the sample.
+
+```{r, echo=FALSE}
+Bac[W[1], c("G1","G2")] <- NA
+```
+
+For `r as.character(Bac$DAT[W[2]])` both the bead count and the cell number is low.
+This indicates that the flow rate was just exceptionally low. The resulting cell number is 
+`r (Bac[ W[ 2], ]$BeadC / Bac[ W[ 2], ]$G1) * Bac[ W[ 2], ]$G2`, which doesn't seem unreasonable. We keep the sample _as is_.
+
+For `r as.character(Bac$DAT[W[3]])` the cell counts are reasonable but the bead counts are absent.
+We replace the bead count by the average bead count of the 1 previous and the 2 following samples (run closely). 
+
+```{r, echo=FALSE}
+Bac$G1[ W[3] ] <- mean( Bac$G1[ c( W[3] - 1,  W[3] + 1,  W[3] + 2)])
+```
+
+The following sample is missing and replaced by NA (spurious cell counts in `$G2`).
+
+```{r, echo=FALSE}
+Bac[Bac$BOT == "22" & Bac$Lake == "Lake 2" & Bac$DIL == "09" & Bac$DAT == as.POSIXct("2012-07-06", tz = "GMT"),
+    c("DAT", "Lake", "DIL", "G1", "G2", "BeadC")]
+
+Bac[ Bac$BOT == "22" & Bac$Lake == "Lake 2" & Bac$DIL == "09" & Bac$DAT == as.POSIXct("2012-07-06", tz = "GMT"), c("G1","G2")] <- NA
+```
+
+Now that the data set is bias-corrected and cleaned, we can finally calculate the cell concentration in each sample. We will also drop all columns that are not needed for downstream analysis.
+
+```{r}
+Bac$Cells <- ( Bac$BeadC / Bac$G1) * Bac$G2
+Bac <- Bac[ , c("BOT", "Lake", "DIL","DAT", "Cells")]
+head(Bac, 3)
+```
+
+## plotting the growth curves
+
+Below, we plot the growth curves (Cells/ml for each day) for each lake.
+Within each lake, I plot one growth curve per dilution. The scale of the 
+y-axis is held constant throughout the figures. The dashed lines represent the 
+sampling occassions. 
+
+```{r, echo=FALSE, warning=FALSE}
+# sampling dates
+SamplDat <- as.numeric( as.POSIXct( c("2012-06-14", "2012-06-28","2012-07-12"), tz = "GMT"))
+
+ggplot( Bac[Bac$Lake == "Lake 1" , ],  aes( x = DAT, y = Cells, group = 1)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2, colour = "orange", shape = 3 ) +
+  geom_line( size = 0.5, colour = "orange") +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "Lake 1", x = "date")+
+  scale_y_continuous(limits=c(0, max(Bac$Cells, na.rm = T)))+
+  theme_bw( )+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot( Bac[Bac$Lake == "Lake 2" , ],  aes( x = DAT, y = Cells, group = 1)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2, colour = "darkred", shape = 17) +
+  geom_line( size = 0.5, colour = "darkred") +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "Lake 2", x= "date")+
+  scale_y_continuous(limits=c(0, max(Bac$Cells, na.rm = T)))+
+  theme_bw( )+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot( Bac[Bac$Lake == "Lake 3" , ],  aes( x = DAT, y = Cells, group = 1)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2, colour = "darkgreen", shape = 15 ) +
+  geom_line( size = 0.5, colour = "darkgreen") +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "Lake 3", x = "date")+
+  scale_y_continuous(limits=c(0, max(Bac$Cells, na.rm = T)))+
+  theme_bw( )+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot( Bac[Bac$Lake == "Lake 4" , ],  aes( x = DAT, y = Cells, group = 1)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2, colour = "darkblue", shape = 16) +
+  geom_line( size = 0.5, colour = "darkblue") +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "Lake 4", x= "date")+
+  scale_y_continuous(limits=c(0, max(Bac$Cells, na.rm = T)))+
+  theme_bw( )+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
+
+I also plot the growth curves together in one graph.
+This corresponds to __Figure_S4__
+
+```{r, echo=FALSE, warning=FALSE}
+
+Fig_S4 <- ggplot( Bac,  aes( x = DAT, y = Cells, group = Lake, colour = Lake, shape = Lake)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2) +
+  geom_line( size = 0.5) +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "cell abundance over the course of the experiment", x= "", y = "Cells/ml")+
+  theme_bw( )+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "bottom") 
+
+Fig_S4
+
+```
+
+```{r, warning=FALSE}
+ggsave("figures/Figure_S_4.pdf", Fig_S4, width = 8, height = 6)
+```
+
+## calculating maximum biomass and stability
+
+From the growth data we extract two response variable that we use as ecosystem functions in our analysis:
+
++ __maximum cell yield__
++ __stability__
+
+### maximum cell yield
+
+We want to calculate the __maximum cell yield__ as it should be representative of 
+the total amount of resources that the bacterial communities could use. Our 
+hypotheses is that more diverse communities will reach higher maximum cell yields 
+than low diverse communities as they have the ability to use a greater share of the
+total available nutrients. 
+
+In order to minimize the influence of outliers, we take the average of the 
+__5 highest cell yields__ in each bottle as __maximum cell yield__
+
+```{r}
+maxBM <- Bac %>% 
+  group_by(BOT, Lake, DIL) %>% 
+  top_n(5, Cells) %>% 
+  summarise(maxCells = mean(Cells))
+
+write.table(maxBM, "response_var/maxBM.txt", sep = "\t")
+```
+
+### stability
+
+We want to calculate __stability__ as we expect that a species-rich assemblage 
+is more stable over time than a species poor one (portfolio effect). 
+
+As metric of stability we use the inverse of the coefficient of variance.
+
+However, as the different dilutions start from different cell concentrations,
+we have to exclude the re-growth phase. By doing this we define stability
+as the _fluctuation of community cell yield around the mean of the stationary phase_
+
+```{r}
+Bac_stationary <- Bac[Bac$DAT > as.POSIXct("2012-06-12", tz = "GMT"),]
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot( Bac_stationary,aes( x = DAT, y = Cells, group = Lake, colour = Lake, shape = Lake)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2) +
+  geom_line( size = 0.5) +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "growthcurves with excluded re-growth phase", x= "", y = "Cells/ml")+
+  theme_bw( )+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "bottom") 
+
+```
+
+Looking at the graph of the stationary phase abundance, we can also see that some of the cultures experience a long-term trend. As we are only interested in looking how stable the culture is around the mean, we detrended the stationary phase cell abundance. For that, we fit a linear model of the form `Cells/ml ~ date` to the data and calculate the stability on the residuals.
+In order to avoid negative residuals we add the mean of the cell counts.
+
+```{r, echo=FALSE}
+# split into list of dataframes by BOT (bottle numbers)
+Bac_stationary_list <- split(Bac_stationary, Bac_stationary$BOT)
+
+# define funciton to extract the residuals and add the mean
+ResidFunc <- function(x) {
+  Resid <- residuals( lm( Cells ~ as.POSIXct(DAT), x))
+  Resid <- Resid + mean( x$Cells, na.rm = T)
+  x <- merge(x, data.frame(Resid), by = 0)
+  return(x)
+}
+
+# apply function to all Bottles
+Bac_stationary_list <- lapply(Bac_stationary_list, ResidFunc)
+Bac_stationary <- do.call("rbind", Bac_stationary_list)
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot( Bac_stationary,aes( x = DAT, y = Resid, group = Lake, colour = Lake, shape = Lake)) +
+  labs(x = "date", y = "Cells/ml") +  
+  facet_wrap( ~DIL)+
+  geom_point( size = 1.2) +
+  geom_line( size = 0.5) +
+  geom_vline( xintercept = SamplDat, colour = "darkgrey", linetype = "dashed")+
+  labs( title = "detrended growth curves", x= "", y = "Cells/ml")+
+  theme_bw( )+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "bottom") 
+```
+
+The detrending was successful and we can now proceed to calculate Stability.
+First we define a function to calculate the coefficient of variance (CV).
+
+```{r}
+co.var <- function(x) sd(x, na.rm=TRUE) / mean( x, na.rm=TRUE)
+```
+
+Then we calculate Stability as the inverse of the CV.
+
+```{r}
+Stability <- Bac_stationary %>% 
+  group_by(BOT, Lake, DIL) %>% 
+  summarise(Stability = 1/co.var(Resid))
+ 
+write.table(Stability, "response_var/Stability.txt", sep = "\t")
+```

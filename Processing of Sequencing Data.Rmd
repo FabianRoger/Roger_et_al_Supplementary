@@ -1,0 +1,333 @@
+---
+title: "Processing of Sequencing Data"
+author: "Fabian Roger"
+date: "18 Nov 2015"
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    latex_engine: lualatex
+    toc: yes
+---
+
+This scripts describes the downstream analysis of the OTU data. The part that goes from the raw Illumina data to quality filtered data was performed by Lucas Sinclair with his [Illuminatag](https://github.com/limno/illumitag) pipeline. 
+
+This pipeline includes:
+
+- Length cutoff
+- Quality filtering
+- Remove reads with undetermined bases
+- Primer presence check
+- Assembly (aka. joining)
+- Demultiplexing
+
+The joined and quality filtered files produced by this pipeline are in the `OTU_docs/quality_reads directory`
+
+```{r, include = FALSE}
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(ape)
+```
+
+```{sh}
+ls OTU_docs/quality_reads
+```
+
+First we cat the files so that we can analyse them together, not separately.
+
+```{sh}
+cat OTU_docs/quality_reads/pool1_reads.fasta OTU_docs/quality_reads/pool2_reads.fasta OTU_docs/quality_reads/pool3_reads.fasta > OTU_docs/qiime_merged.fasta
+```
+
+Next we de-replicate the reads. This means that all identical reads will be merged and a size annotation will be added to the header, saying how many reads of a given read were found. From here on we will do the majority of the analysis in usearch. 
+
+```{sh}
+usearch
+```
+
+As Usearch uses progress bars to track progress, I will redirect the output into an `output.tmp` file from which I can only print the last lines containing the summery statistic of the completed process. 
+
+```{sh, results="hide"}
+usearch -derep_fulllength OTU_docs/qiime_merged.fasta -fastaout OTU_docs/uniques.fasta -sizeout 2> output.tmp
+``` 
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+Now we sort the unique sequences by cluster size. 
+
+**in this step we will exclude all global singletons**
+
+See the discussion [here](http://drive5.com/usearch/manual/singletons.html) for why. In short, singletons are likely to not represent biological sequences and should therefore not be included for the OTU clustering. This *doesn't* mean that we exclude all the sequences as these will be mapped back to the OTUs after OTU clustering. 
+
+```{sh, results="hide"}
+usearch -sortbysize OTU_docs/uniques.fasta -fastaout OTU_docs/seqs_sorted.fasta -minsize 2 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+Now we cluster the remaining sequences with an OTU radius of 3%. Robert Edgar discusses this [here](http://drive5.com/usearch/manual/cmd_cluster_otus.html). Note that this is not necessarily equivalent to the 97% identity clustering of other pipelines. As 3% is the difference form the **centroid** sequence, some people argue that 1.5% radius would be the equivalent (3% maximum difference). For this analyses however, we keep the clustering at 3%. 
+
+> The -otu\_radius_pct option specifies the OTU "radius" as a percentage, i.e. the maximum difference between an OTU member >sequence and the representative sequence of that OTU. Default is 3.0, corresponding to a minimum identity of 97%. 
+
+```{sh, results="hide"}
+usearch -cluster_otus OTU_docs/seqs_sorted.fasta -otus OTU_docs/otus.fasta -otu_radius_pct 3 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+Now we proceed to chimera checking using the rdp gold reference database. The database was downloaded in 2014-10-22. 
+
+```{sh, results="hide"}
+usearch -uchime_ref OTU_docs/otus.fasta -db OTU_docs/reference_files/rdp_gold.fasta -uchimeout OTU_docs/results.uchime -uchimealns OTU_docs/uchimealns.txt -chimeras OTU_docs/chimeras.fasta -nonchimeras OTU_docs/nonchimeras.fasta -strand plus 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+Next, we rename the non-chimeric OTUs by number instead of size annotations with the fasta_number.py script. The script is part of the python scripts provided [here](http://drive5.com/python/). On my system the scripts are installed under ~/drive5_py. 
+
+```{sh}
+python ~/drive5_py/fasta_number.py OTU_docs/nonchimeras.fasta OTU_ > OTU_docs/numbered_OTU.fasta
+
+```
+
+Now that we have our set of non-chimeric OTUs, we can use the reference sequences to assign a taxonomy. We use the [utax algorithm](http://www.drive5.com/usearch/manual/utax_algo.html)
+
+> At a high level, UTAX is a k-mer based method which looks for words in common between the query sequence and reference sequences with known taxonomy. A score calculated from word counts is used to estimate a confidence value for each taxonomic level. Confidence values are trained to give a realistic estimate of error rates.
+
+For the assignment, we use the `rdp_16s_trainset15` downloaded from [here](http://www.drive5.com/usearch/manual/utax_downloads.html). 
+
+```{sh, results="hide"}
+usearch -makeudb_utax OTU_docs/reference_files/refdb.fa -output OTU_docs/reference_files/refdb.udb -taxconfsin OTU_docs/reference_files/500.tc 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+```{sh, results="hide"}
+usearch -utax OTU_docs/numbered_OTU.fasta -db OTU_docs/reference_files/refdb.udb -fastaout OTU_docs/numbered_OTU_wTax.fasta -utaxalnout OTU_docs/TAX_alignment -strand both 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+Now we map all the reads back to the OTUs. All the reads that came out from the quality control are in the file **qiime_merged.fasta**, we take this reads anD attempt to assign all of them to the OTUs that we just constructed an which are stored in the file **numbered_OTU.fasta**
+
+However, the `-usearch_global` command doesn't take `_` as a separator. Therefore we remove all numbers after the read label so that the header starts with the correct read label and is delimited by a `.`. 
+
+```{sh}
+head -n 2 OTU_docs/qiime_merged.fasta
+
+sed -e 's/\(gbg.\{1,3\}\)_[0-9]*/\1/g' <OTU_docs/qiime_merged.fasta> OTU_docs/qiime_merged_newlabel.fasta
+
+head -n 2 OTU_docs/qiime_merged_newlabel.fasta
+```
+
+Now we can use the usearch_global command.
+
+```{sh, results="hide"}
+usearch -usearch_global OTU_docs/qiime_merged_newlabel.fasta  -db OTU_docs/numbered_OTU_wTax.fasta -strand plus -id 0.97 -uc OTU_docs/readmap.uc -otutabout OTU_docs/OTU_97.txt 2> output.tmp
+```
+```{sh, echo=FALSE}
+sed -ibak $'s/\x0D/\\\n/g' output.tmp
+tail -n5 output.tmp
+```
+
+For some strange reason there is a `#` before the first column name in the `OTU_97.txt`file, which we need to remove before we can import the OTU table in R. 
+
+```{sh}
+sed -e 's/#OTU/OTU/' OTU_docs/OTU_97.txt > OTU_docs/OTU_97.txt.tmp && mv OTU_docs/OTU_97.txt.tmp OTU_docs/OTU_97.txt
+```
+
+Now we import the OTU table into R.
+
+```{r}
+OTU <- read.table("OTU_docs/OTU_97.txt", sep = "\t", header = T, stringsAsFactor = F)
+```
+
+`utax` attaches the taxonomy as one `$taxonomy`column at the end of the OTU table. The taxa are comma separated and the probability of the correctness of the assignment is given in brackets. R:Edgar recommends to use a threshold of 0.9 to trust the assignment. 
+
+We will extract the taxonomy from the OTU table and create a new `TAX` table with the taxonomic assignment of each OTU.
+
+```{r}
+# example
+OTU$taxonomy[1]
+```
+
+```{r, echo = FALSE}
+# function to convert the taxonomy column into TAX table.
+# assumes an OTU_table as created by the -otutabout option of the -usearch_global command
+
+utax2tax <- function(x, OTU.ID = "OTU.ID", TAX = "taxonomy") {
+  # x : the otu table
+  # OTU_ID: quoted colname that contains the OTUID
+  # TAX: quoted colname that contains the taxonomic assignments 
+  # threshold for discarding assignment in the TAX_wide dataframe
+  
+  #returns a named list of two dataframes:
+  #[1]: TAX_long is a df with 4 columns: OTU.ID, tax_order, taxa, assign.prob
+  
+  if(! OTU.ID %in% colnames(x)) stop("OTU ID's missing")
+  if(! TAX %in% colnames(x)) stop("taxonomy missing")
+  
+  if ( ! is.character( x[ ,TAX])) {
+    x[ ,TAX] <- as.character(x[ ,TAX])
+  }
+  
+  tax.list <- strsplit(x[ , TAX], ',' , fixed=T)
+  names(tax.list) <- x[ ,OTU.ID]
+  
+  tax.list_df <- 
+  lapply(tax.list, 
+  function(z) {
+  data.frame(
+             tax_order = unlist( lapply( z, substr, 1, 1)),
+             TAX = unlist( lapply( z, function(x) gsub( "\\w:([a-zA-Z0-9/_]+)\\(.+", "\\1", x))),
+             assign.prob = as.numeric( unlist( lapply( z, function(x) gsub( ".+\\((.+)\\)", "\\1", x)))))
+  })
+  
+  TAX_long <- do.call("rbind", tax.list_df)
+  TAX_long[OTU.ID] <- as.factor( substr( rownames( TAX_long),1, nchar(rownames( TAX_long)) -2 ))
+  
+  TAX_wide <- select(TAX_long, -assign.prob) %>% 
+    spread(tax_order, TAX)
+  TAX_wide <- TAX_wide[, c(OTU.ID, "d", "p", "c", "o", "f", "g")]
+  
+  return( list(TAX_long = TAX_long,
+               TAX_wide = TAX_wide)) 
+}
+
+```
+
+```{r}
+TAX.list <- utax2tax(OTU)
+
+TAX_long <- TAX.list$TAX_long
+TAX_wide <- TAX.list$TAX_wide
+
+
+OTU <- select(OTU, -taxonomy)
+```
+
+Both data frames (`TAX_long` & `TAX_wide`) still contain all OTUs. We want to take out all OTUs that are likely to be Chloroplasts or Mitochondria which could have passed the filters. For that we will filter out all OTUs that
+
++ for which the best `class` assignment is `"Chloroplast"`
++ for  which the best `order` assignment is `"Rickettsiales"` (that's how Mitochondria Sequences are classified in the RDP database)
+
+We will also exclude all `"Archaea"` sequences as our primers were not designed to capture `"Archaea"` 
+
+Finaly we exclude all OTUs that don't have at least a 50% likelyhood to belong to `"Bacteria"`
+
+```{r}
+
+data.frame(OTU.ID = OTU$OTU.ID, OTUabund = rowSums(OTU[, -1])) %>% 
+  left_join(TAX_wide, .) %>% 
+  mutate(d = replace(d, c == "Chloroplast", "Chloroplast")) %>% 
+  mutate(d = replace(d, o == "Rickettsiales", "Rickettsiales")) %>%
+  group_by(d) %>% 
+  summarise(OTUabund = sum(OTUabund), n_OTUs = n()) %>% 
+  ggplot( aes( x = d, y = OTUabund, fill = d))+
+  geom_bar(stat = "identity")+
+  geom_text(aes(y = OTUabund + 1e5, label = paste(OTUabund, "reads")), size = 4) +
+  geom_text(aes(y = OTUabund + 2e5, label = paste( n_OTUs, "OTUs")), size = 4) +
+  labs(title = "number of reads in the OTUs ")+
+  theme_bw()
+
+BAC <- filter(TAX_long, tax_order == "d", TAX == "Bacteria")$OTU.ID 
+BAC_bad <- filter(TAX_long, tax_order == "d", TAX == "Bacteria", assign.prob < 0.5)$OTU.ID 
+
+data.frame(OTU.ID = as.character(BAC), OTUabund = rowSums(OTU[OTU$OTU.ID %in% BAC, -1])) %>% 
+  mutate(GB = "GOOD") %>% 
+  mutate(GB = replace(GB, OTU.ID %in% BAC_bad, "BAD")) %>%
+  group_by(GB) %>% 
+  summarise(OTUabund = sum(OTUabund), n_OTUs = n()) %>%
+   ggplot( aes( x = GB, y = OTUabund, fill = GB))+
+  geom_bar(stat = "identity")+
+  geom_text(aes(y = OTUabund + 1e5, label = paste(OTUabund, "reads")), size = 4) +
+  geom_text(aes(y = OTUabund + 2e5, label = paste( n_OTUs, "OTUs")), size = 4) +
+  labs(title = "number of reads in the OTUs ")+
+  theme_bw()
+
+```
+
+For further analysis we will only keep the OTUs that have been assigned to the domain `Bacteria`.
+We clean the `OTU` table and the `TAX_wide` table of all other OTUs and export them. We also export a file containing all OTU's that are assigned as `Bacteria` .
+
+```{r}
+TAX_wide %>% 
+  mutate(d = replace(d, c == "Chloroplast", "Chloroplast")) %>%
+  mutate(d = replace(d, o == "Rickettsiales", "Rickettsiales")) %>% 
+  filter(! OTU.ID %in% BAC_bad) %>% 
+  filter( d == "Bacteria") %T>% 
+  {assign("BAC_OTUs", .$OTU.ID, pos = ".GlobalEnv" )} %>% 
+  write.table(., file = "OTU_docs/TAX_clean.txt", sep = "\t")
+
+OTU %>% 
+  filter(OTU.ID %in% BAC_OTUs) %>% 
+   write.table(., file = "OTU_docs/OTU_clean.txt", sep = "\t")
+
+BAC_OTUs %>% as.character %>% cat(., file = "OTU_docs/BAC_OTUs.txt", sep ="|")
+```
+
+To clean the file `numbered_OTU_wTax.fasta`from the sequences that we don't want to keep, we move the analysis to Qiime where we can use the python script `filter_fasta.py`. 
+
+**the following code is run directly in the console as calling qiime with sytsem() doesn't seem to work**
+The exact commands are included in this document but can't be run as a script. 
+
+```{sh, eval=FALSE}
+#macqiime
+```
+
+
+```{sh, eval = FALSE}
+grep -E -w -f OTU_docs/BAC_OTUs.txt OTU_docs/numbered_OTU_wTax.fasta > OTU_docs/OTU_BAC.txt
+sed -ibak -E 's/^>//' OTU_docs/OTU_BAC.txt
+filter_fasta.py -f OTU_docs/numbered_OTU_wTax.fasta -s OTU_docs/OTU_BAC.txt -o OTU_docs/numbered_OTU_wTax_clean.fasta
+grep -c -E '^>' OTU_docs/numbered_OTU_wTax_clean.fasta
+```
+
+Next we proceed with construction of a phylogenetic tree. Before the construction of the tree, we strip the phylogenetic information from the sequence label (otherwise all sequences are named by their full header). Then, we
+
++ align the representative sequences against the greengen full-length 16S database (default in qiime) using the (default) pynast algorithm
++ filter 'all gaps' positions
++ build a tree with midpoint rooting and the (default) fasttree algorithm
+
+```{sh, eval = FALSE}
+sed -E 's/^(>OTU_[0-9]+);.+/\1/' <OTU_docs/numbered_OTU_wTax_clean.fasta> OTU_docs/numbered_OTU.fasta
+
+cd OTU_docs
+
+align_seqs.py -i numbered_OTU.fasta
+
+filter_alignment.py -i pynast_aligned/numbered_OTU_aligned.fasta -o pynast_aligned
+ 
+make_phylogeny.py -i pynast_aligned/numbered_OTU_aligned_pfiltered.fasta -r midpoint -o OTU97.tre
+```
+
+As we need an ultrametric tree to estimate phylogenetic diversity we need to make the tree ultrametric. We will use pathd8 to achieve this.
+
+```{sh, eval = FALSE}
+
+PATHd8/PATHd8 OTU97.tre OTU97_um.tre
+
+```
+
+PATH8 produces a big file with lots of additional information that is not very relevant in our case.
+We can use `ape::read.tree` to extract the tree from the file and write it back as pure tree file. We can also use the opportunity to strip the additional `'` from the tree labels.
+
+```{r, eval = FALSE}
+TREE <- read.tree("OTU_docs/OTU97_um.tre")[[1]]
+TREE$tip.label <- sub("'(\\w+)'", "\\1", TREE$tip.label)
+write.tree(TREE, "OTU_docs/OTU97_um.tre")
+
+```

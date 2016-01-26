@@ -1,0 +1,575 @@
+---
+title: "Diversity - Ecosystem functioning correlations"
+author: "Fabian Roger"
+date: "28 Nov 2015"
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    latex_engine: lualatex
+    toc: yes
+---
+
+__this script imports:__ 
+
++ response_var/maxBM.txt        *maximum cell counts*                 
++ response_var/Stability.txt    *temporal stability of the cell counts*
++ response_var/NUT.txt          *rescaled dissolved inorganic nitrogen data, high values = high depletion*
++ OTU_docs/DIV.txt              *effective number of species and phylogenetic diversity based on hill numbers*
++ EcoLogDocs/FunDiv.txt         *functional diversity based on Biolog EcoPlates*
+   
+__this script does:__
+
++ joins the diversity metrics and measured ecosystem functions
++ calculates the average diversity 
++ calculates multifunctionality
++ correlates the diversity metrics with the ecosystem functions
++ computes r squares and p-values for each correlation
+  
+__this script exports:__
+  
+figures:
+
++ figures/Figure_1.pdf      *average diversity over the three smapling dates*
++ figures/Figure_3.pdf      *biplot of diversity ~ ecosystem functioning*
++ figures/Figure_S_5.pdf    *correlation between the average diveristy metrics by lake*
++ figures/Figure_S_6.pdf    *biplot of diversity ~ ecosystem functioning - spearman rank correlations*
+  
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+```{r}
+source("utility_functions.R")
+```
+```{r, echo=FALSE}
+require(dplyr)
+require(GGally)
+require(ggplot2)
+require(tidyr)
+require(broom)
+require(scales)
+require(gridExtra)
+require(grid)
+```
+
+###The Metrics
+
+####Diveristy metrics:
+
++ Species richness (effective number of species - Hill1)
++ Phylogenetic diversity (Effective number of taxonomic completely distinct species)
++ Functional diversity (effective number of carbon sources that a community can consume)
+
+####Ecosystem functions:
+
++ Maximum Cell yield (averaged over the five highest cell yield observed for each community)
++ Stability (inverse of the coefficient of variation of the detrended cell yield over the course of the experiment)
++ remaining dissolve organic nitrogen at the end of the experiment. 
+
+for that we first need to import the according data
+
+**Ecosystem Functions**
+```{r}
+maxBM <- read.table("response_var/maxBM.txt", header = TRUE, stringsAsFactors = FALSE)
+Stability <- read.table("response_var/Stability.txt", header = TRUE, stringsAsFactors = FALSE)
+NUT <- read.table("response_var/NUT.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+```
+
+**Diversity metrics**
+```{r}
+DIV <- read.table("OTU_docs/DIV.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+FunDiv <- read.table("EcoLogDocs/FunDiv.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+```
+
+We can join the functional diversity data to the rest and plot them, both against dilution and against each other. 
+
+```{r, echo=FALSE}
+DIV <- na.omit(DIV) %>% 
+  left_join( FunDiv) %>% 
+  transform(Sampling = factor(Sampling, levels = c("14.06", "28.06", "12.07")))
+
+DIV$Lake <- as.factor(DIV$Lake)
+
+divPairs2 <- ggscatmat(DIV,
+        columns = 5:7, 
+        color = "Lake")+
+  theme_bw() +
+  theme(legend.position = "bottom")+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(title = "correlation between the diveristy metrics by lake",
+       x = "", y="")
+
+divPairs2
+```
+
+```{r, echo=FALSE}
+
+ggplot(DIV, aes(x = DIL, y = effN, colour = Lake, shape = Lake, group = Lake))+
+  geom_point()+
+  facet_wrap(Sampling~Lake)+
+  stat_smooth(method = "lm", se = F, linetype = "dashed")+
+  scale_y_log10(breaks = c(2, 4, 8, 16, 32))+
+  theme_bw()+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(title = "species richness",
+       y = "effective number of species (q = 1)",
+       x = "dillution factor")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))
+  
+
+ggplot(DIV, aes(x = DIL, y = PD, colour = Lake, shape = Lake, group = Lake))+
+  geom_point()+
+  facet_wrap(Sampling~Lake)+
+  stat_smooth(method = "lm", se = F, linetype = "dashed")+
+  scale_y_log10(breaks = c(2, 4, 8, 16))+
+  theme_bw()+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(title = "phylogenetic diversity (q = 1)",
+       y = "effective number of phylogenetic disctinct species",
+       x = "dillution factor")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))
+
+ggplot(DIV, aes(x = DIL, y = FuncDiv , colour = Lake, shape = Lake, group = Lake))+
+  geom_point()+
+  facet_wrap(Sampling~Lake)+
+  stat_smooth(method = "lm", se = F, linetype = "dashed")+
+  theme_bw()+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(title = "functional diveristy",
+       y = "effective number of utilized carbon sources",
+       x = "dillution factor")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))
+
+```
+
+For each diversity metric, we have three measurements, taken at three time points. Our measure of ecosystem functioning however result in a single value per dilution level and lake, as they integrate the whole course of the experiment. Therefore we have to take the average diversity as predictor variable. In the graph below we show the value of each divert metric plot together for the three sampling dates (colored dots) and the average diversity (black dots).
+
+```{r, echo = FALSE}
+G1 <- DIV %>% 
+  gather(DIVmetric, DIVvalue, effN, PD, FuncDiv) %>%
+  group_by(BOT, Lake, DIL, DIVmetric) %>% 
+  mutate(y = mean(DIVvalue)) %>% 
+  ggplot(aes(x = DIL, y = y, shape = Lake, group = 1))+
+  geom_point(aes(x = DIL, y = DIVvalue), alpha = 0.3, size = 1.5)+
+  geom_point(size = 2)+
+  facet_grid(DIVmetric ~ Lake, scales = "free_y")+
+  stat_smooth(method = "lm", se = F, linetype = "solid", colour = "black", size = 0.5)+
+  scale_y_log10(breaks = c(2,4,8,16,32))+
+  theme_bw()+
+  labs(title = "average diversity over the three smapling dates",
+       y = "value of diversity metric",
+       x = "dillution factor")+
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5))
+
+G1
+```
+
+
+```{r}
+ggsave(plot = G1, "figures/Figure_1.pdf", height = 8, width = 8)
+```
+
+
+```{r}
+avDIV <- select(DIV, -Sampling) %>% 
+  group_by(BOT, Lake, DIL) %>% 
+  summarise_each(funs(mean(., na.rm = T)))
+```
+
+```{r, echo = F}
+
+divPairs3 <- ggscatmat(as.data.frame(avDIV),
+        columns = 4:6, 
+        color = 'Lake')+
+  theme_bw() +
+  theme(legend.position = "bottom")+
+  scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(title = "correlation between the average diveristy metrics by lake",
+       x = "", y="")
+
+divPairs3
+
+pdf("figures/Figure_S_5.pdf")
+print(divPairs3)
+dev.off()
+```
+
+
+The graph about shows the pearson correlations. We can also look at the r-squares (squared pearson correlations) and the p-values. 
+
+```{r, echo = T}
+# correlation of functional diversity and effective number of species
+avDIV %>% 
+  group_by(Lake) %>% 
+  do(glance(lm(FuncDiv~effN, data = .)))
+
+# correlation of functional diveristy and phylogenetic diversity
+avDIV %>% 
+  group_by(Lake) %>% 
+  do(glance(lm(FuncDiv~PD, data = .)))
+
+# correlation of effective number of species and phylogenetic diversity
+avDIV %>% 
+  group_by(Lake) %>% 
+  do(glance(lm(effN~PD, data = .)))
+
+```
+
+
+Let's look at some summary statistics of the diveristy metrics.
+
+```{r, echo = FALSE}
+
+DIV_sum <- DIV %>%
+  gather(DIV_metric, DIV_value, effN, PD, FuncDiv) %>% 
+  ggplot(aes(x=Sampling, y=DIV_value, fill = Lake))+
+  geom_boxplot()+
+  facet_wrap(~DIV_metric, scales = "free")+
+  theme_bw()+
+  scale_fill_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))+
+  labs(x = "sampling dates", y = "value of diveristy metric", title = "summary of diveristy metrics")+
+  theme(legend.position = "bottom")
+
+
+DIV_sum
+  
+DIV %>%
+  gather(DIV_metric, DIV_value, effN, PD, FuncDiv) %>% 
+  group_by(DIV_metric, Sampling) %>% 
+  summarise_each( funs(min, max, mean, median), DIV_value) %>% 
+  print(n=nrow(.))
+
+```
+
+Now we can correlate each diversity metric to each ecosystem function for each Lake. In order to be able to compare the absolute value of the slopes, we scale all variables to mean = 0 and sd = 1 prior to correlation. Note that the nutrient data is already scaled so we join it after having scaled the other variables. 
+
+Also, before we proceed, we exclude dilution level 0 form the data. See the manuscript for a discussion why.
+ 
+```{r}
+
+EF <- maxBM %>% 
+  left_join(Stability) %>% 
+  left_join(NUT)
+
+BEF <- filter(avDIV, DIL != 0) %>% 
+  left_join(EF) 
+
+head(BEF,2) 
+```
+
+To see the correlations between the three metrics of EF and the three diversity metrics, we correlate them.
+
+```{r, echo = FALSE}
+
+BEF_long <- BEF %>%  # gather diveristy metrics in one colum, keep EF separate
+  ungroup %>% 
+  gather(DIVmetric, DIVval, effN, PD, FuncDiv)
+
+
+BEF_long2 <- BEF %>% #gather both diveristy columns and EF in a single column respectively
+  ungroup %>% 
+  gather(DIVmetric, DIVval, effN, PD, FuncDiv) %>% 
+  gather(EFmetric, EFval, maxCells, Stability, DIN) %>% 
+  select(-BOT, -DIL)
+
+LM <- BEF_long2 %>% #regress each div metric against each EF, by Lake. extract p-value and r-square
+  group_by(Lake, DIVmetric, EFmetric) %>% 
+  do( glance( lm( scale(EFval) ~ scale(DIVval), .))) %>% 
+  select(Lake, DIVmetric, EFmetric, adj.r.squared, p.value) %>% 
+  mutate(adj.r.squared = replace(adj.r.squared, adj.r.squared < 0, 0))
+  
+
+Label_x <- BEF_long2 %>% #calculate x value for where to add the linear regression statistic in respective panels
+  group_by(DIVmetric, EFmetric) %>% 
+  summarize(x = (max(DIVval) - (max( DIVval) - min(DIVval))* 0.2 ))
+
+Label_y <- BEF_long2 %>% #calculate y values to print the add regression statistics in respective panels
+  group_by(Lake, EFmetric) %>% 
+  summarize(y1 = (max(EFval) - (max( EFval) - min(EFval))* 0.2 ),
+                   y2 = (max(EFval) - (max( EFval) - min(EFval))* 0.35 ))
+
+Label_ymin_ymax <- BEF_long2 %>% #calculate ymin value for where to beginn the white transparent rectangle behind teh text
+  group_by(Lake, EFmetric) %>% 
+  summarize(ymax = (max(EFval) - (max( EFval) - min(EFval))* 0.15 ),
+                   ymin = (max(EFval) - (max( EFval) - min(EFval))* 0.4 ))
+
+
+LM <- left_join(LM, Label_x) %>%  left_join(Label_y) %>% left_join(Label_ymin_ymax)
+
+LM$xmin <- LM$x - 0.2 * LM$x
+LM$xmax <- LM$x + 0.2 * LM$x
+
+
+  
+LMmC <- filter(LM, EFmetric == "maxCells") # subset for and plot EF: maxCells
+  
+G2 <-  ggplot(BEF_long, aes(x = DIVval, y = maxCells, shape = Lake))+
+  geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+  geom_rect( data = LMmC, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LMmC, aes(x = x, y = y1, label = paste("r2.", signif(adj.r.squared, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LMmC, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+  facet_grid(Lake ~ DIVmetric, scales = "free")+
+  theme_bw()+
+  labs(title = "maximum cell abundance",
+       y = "maximum cell abundance",
+       x = "")+
+  theme(legend.position = "none",
+       axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+       plot.margin = unit(c(1,0.5,0,1), "cm"))+
+  scale_y_continuous(label=scientific_10)# +
+  #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+LM_S <- filter(LM, EFmetric == "Stability") # subset for and plot EF: Stability
+
+G3 <- ggplot(BEF_long, aes(x = DIVval, y = Stability, shape = Lake))+
+    geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+  geom_rect( data = LM_S, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_S, aes(x = x, y = y1, label = paste("r2.", signif(adj.r.squared, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_S, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales = "free")+
+    theme_bw()+
+    labs(title = "temporal stability of cell abundance",
+         y = "stability of cell abundance",
+         x = "")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(1,1,0,0.5), "cm"))#+
+    #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+LM_DIN <- filter(LM, EFmetric == "DIN") # subset for and plot EF: DIN
+  
+G4 <- ggplot(BEF_long, aes(x = DIVval, y = DIN, shape = Lake))+
+    geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+   geom_rect( data = LM_DIN, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_DIN, aes(x = x, y = y1, label = paste("r2.", signif(adj.r.squared, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_DIN, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales = "free")+
+    theme_bw()+
+    labs(title = "depletion of dissolved organic nitrogen",
+         y = "-1 * standardized DIN concentration",
+         x = "value of diveristy metric")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(0,0.5,1,1), "cm")) #+
+    #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+
+########## calculate Multifunctionality at 75% threshold ###############
+  
+MF_DF <- BEF_long %>% # calculate how many functions are over threshold for given diversity value
+  group_by(DIVmetric, Lake) %>% 
+  do( getFuncMaxed(., vars = c("DIN", "Stability", "maxCells"), thresh = 0.75, prepend = "DIVval", maxN = 2))
+
+LM_MF <- MF_DF %>% #regress each div metric against the number of EF of threshold. extract p-value and r-square
+  group_by(Lake, DIVmetric) %>% 
+  do( glance( lm(scale(funcMaxed) ~ scale(DIVval), .))) %>% 
+  select(Lake, DIVmetric, adj.r.squared, p.value) %>% 
+  mutate(adj.r.squared = replace(adj.r.squared, adj.r.squared < 0, 0))
+
+LM_MF <- LM %>% ungroup %>% select(Lake, DIVmetric, x, xmin, xmax) %>% distinct %>% left_join(LM_MF ,.) # add x-values for adding of regression stat
+
+G5 <- ggplot(MF_DF, aes(x = DIVval, y = funcMaxed, shape = Lake))+ # plot diversity ~multifunctionality
+    geom_point() +
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", colour = "black", size = 0.5)+
+   geom_rect( data = LM_MF, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = 1.8, ymax = 2.7),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_MF, aes(x = x, y = 2.5, label = paste("r2.", signif(adj.r.squared, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_MF, aes(x = x, y = 2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales="free_x")+
+    theme_bw()+
+    labs(title = "multifunctionality",
+         y = "number of function > 75% of maximum",
+         x = "value of diveristy metric")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(0,1,1,0.5), "cm"))#+
+    #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+G2
+G3
+G4
+G5
+  
+pdf("figures/Figure_3.pdf", height = 10, width = 10)
+grid.arrange(G2, G3, G4, G5, ncol = 2)
+dev.off()
+
+grid.arrange(G2, G3, G4, G5, ncol = 2)
+```
+
+It is visible from the scatter-plots that there os no strong correlation between either of the diversity metrics and either of the ecosystem functioning metrics. We can compute some summary statistics to see how many relationships are significant and how much variance is explained on average. 
+
+```{r, echo = FALSE}
+
+LM_sum <- LM %>% ungroup %>% select( Lake, DIVmetric, adj.r.squared, p.value)
+LM_MF_sum <- select(LM_MF, Lake, DIVmetric, adj.r.squared, p.value)
+LM_all <- rbind(LM_sum, LM_MF_sum)
+
+LM_all %>% tbl_df %>% print(n=48)
+
+options(dplyr.width = Inf)
+
+LM_all %>% 
+  mutate(p.corr = p.adjust(p.value, "holm")) %>%
+  summarize(r_mean = mean(adj.r.squared),
+            r_median = median(adj.r.squared),
+            r_min = min(adj.r.squared),
+            r_max = max(adj.r.squared),
+            p_mean = mean(p.value),
+            p_median = median(p.value),
+            p_min = min(p.value),
+            p_max = max(p.value),
+            p_0.05 = nrow(filter(., p.value <= 0.05)),
+            p_0.01 = nrow(filter(., p.value <= 0.01)),
+            p.cor_0.05 = nrow(filter(., p.corr <= 0.05)),
+            n_cor = nrow(.))
+
+```
+
+The statics that we present in the plots are linear correlations of the form Ecosystem Function ~ Diversity Metric. As assumption of normality are however not necessarily met, we present also the rank correlations:
+
+```{r, echo = FALSE}
+
+LM_rank <- BEF_long2 %>%
+  group_by(Lake, DIVmetric, EFmetric) %>% 
+  do( glance( cor.test( .$EFval , .$DIVval, method = "spearman"))) %>% 
+  select(Lake, DIVmetric, EFmetric, estimate, p.value)
+
+LM_rank <- select(LM, -adj.r.squared, -p.value) %>% 
+  left_join(., LM_rank)
+
+
+LMmC_R <- filter(LM_rank, EFmetric == "maxCells")
+  
+G6 <-  ggplot(BEF_long, aes(x = DIVval, y = maxCells, shape = Lake))+
+  geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+  geom_rect( data = LMmC_R, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LMmC_R, aes(x = x, y = y1, label = paste("r2.", signif(estimate, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LMmC_R, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+  facet_grid(Lake ~ DIVmetric, scales = "free")+
+  theme_bw()+
+  labs(title = "maximum cell abundance",
+       y = "maximum Cell abundance",
+       x = "")+
+  theme(legend.position = "none",
+       axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+       plot.margin = unit(c(1,0.5,0,1), "cm"))+
+  scale_y_continuous(label=scientific_10)#+
+  #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+LM_S_R <- filter(LM_rank, EFmetric == "Stability")
+
+G7 <- ggplot(BEF_long, aes(x = DIVval, y = Stability, shape = Lake))+
+    geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+  geom_rect( data = LM_S_R, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_S_R, aes(x = x, y = y1, label = paste("r2.", signif(estimate, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_S_R, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales = "free")+
+    theme_bw()+
+    labs(title = "temporal stability of cell abundance",
+         y = "stability of cell abundance",
+         x = "")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(1,1,0,0.5), "cm"))
+
+LM_DIN_R <- filter(LM_rank, EFmetric == "DIN")
+  
+G8 <- ggplot(BEF_long, aes(x = DIVval, y = DIN, shape = Lake))+
+    geom_point()+
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", size = 0.5, colour = "black")+
+   geom_rect( data = LM_DIN_R, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_DIN_R, aes(x = x, y = y1, label = paste("r2.", signif(estimate, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_DIN_R, aes(x = x, y = y2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales = "free")+
+    theme_bw()+
+    labs(title = "depletion of dissolved organic nitrogene",
+         y = "-1 * standardized DIN concentration",
+         x = "value of diveristy metric")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(0,0.5,1,1), "cm")) #+
+    #scale_colour_manual(values = c("orange", "darkred", "darkgreen", "darkblue"  ))
+
+LM_MF_rank <- MF_DF %>% #regress each div metric against the number of EF of threshold. extract p-value and r-square
+  group_by(Lake, DIVmetric) %>% 
+  do( glance( cor.test(.$funcMaxed , .$DIVval, method = "spearman"))) %>% 
+  select(Lake, DIVmetric, estimate, p.value)
+
+LM_MF_R <- LM_rank %>% ungroup %>% select(Lake, DIVmetric, x, xmin, xmax) %>% distinct %>% left_join(LM_MF_rank ,.) # add x-values for adding of
+
+
+
+G9 <- ggplot(MF_DF, aes(x = DIVval, y = funcMaxed, shape = Lake))+ # plot diversity ~multifunctionality
+    geom_point() +
+  stat_smooth(method = "lm", se = FALSE, linetype = "solid", colour = "black", size = 0.5)+
+   geom_rect( data = LM_MF_R, aes(x=NULL,y=NULL, xmin = xmin, xmax = xmax, ymin = 1.8, ymax = 2.7),
+             fill = "white", alpha = 0.8) +
+  geom_text(data = LM_MF_R, aes(x = x, y = 2.5, label = paste("r2.", signif(estimate, 1), sep = " : " )), colour = "black", size = 2)+
+  geom_text(data = LM_MF_R, aes(x = x, y = 2, label = paste("p", signif(p.value, 1), sep = " : " )), colour = "black", size = 2)+
+    facet_grid(Lake ~ DIVmetric, scales="free_x")+
+    theme_bw()+
+    labs(title = "multifunctionality",
+         y = "number of function > 75% of maximum",
+         x = "value of diveristy metric")+
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = -90, hjust = 0, vjust = 0.5),
+          plot.margin=unit(c(0,1,1,0.5), "cm"))
+
+
+G6
+G7
+G8
+G9
+  
+pdf("figures/Figure_S_6.pdf", height = 10, width = 10)
+grid.arrange(G6, G7, G8, G9, ncol = 2, top = "Spearman rank correlation")
+dev.off()
+
+grid.arrange(G6, G7, G8, G9, ncol = 2, top = "Spearman rank correlation")
+```
+
+We can compute some summary statistics to see how many relationships are significant and how much variance is explained on average.
+
+```{r, echo = FALSE}
+LM_rank_sum <- LM_rank %>% ungroup %>% select( Lake, DIVmetric, estimate, p.value)
+LM_MF_rank_sum <- LM_MF_rank %>% ungroup %>% select( Lake, DIVmetric, estimate, p.value)
+
+LM_rank_all <- rbind(LM_rank_sum, LM_MF_rank_sum)
+
+options(dplyr.width = Inf)
+
+LM_rank_all %>% 
+  mutate(p.corr = p.adjust(p.value, "holm")) %>%
+  summarize(r_mean = mean(estimate),
+            r_median = median(estimate),
+            r_min = min(abs(estimate)),
+            r_max = max(abs(estimate)),
+            p_mean = mean(p.value),
+            p_median = median(p.value),
+            p_min = min(p.value),
+            p_max = max(p.value),
+            p_0.05 = nrow(filter(., p.value <= 0.05)),
+            p_0.01 = nrow(filter(., p.value <= 0.01)),
+            p.cor_0.05 = nrow(filter(., p.corr <= 0.05)),
+            n_cor = nrow(.))
+
+```
+

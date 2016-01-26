@@ -1,0 +1,115 @@
+---
+title: "Nutrient Data"
+author: "Fabian Roger"
+date: "28 Nov 2015"
+output:
+  html_document:
+    fig_caption: yes
+    toc: yes
+  pdf_document:
+    latex_engine: lualatex
+    toc: yes
+---
+
+
+__this script imports:__ 
+
++ NutrientDocs/Nut.txt        *raw nutrient data*
++ ID.txt                      *sample meta-data*
+   
+__this script does:__
+
+  + cleans the nutrient data 
+  + calculates dissolved inorganic nitrogen (DIN)
+  + rescales DIN
+  
+__this script exports:__
+  
+  data frames:
+  
+  + response_var/NUT.txt      *rescaled dissolved inorganic nitrogen data, high values = high depletion*
+  
+  
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+
+```{r, echo=FALSE}
+require(dplyr)
+require(ggplot2)
+```
+
+In this script we will import, clean, and rescale the nutrient data.
+First, read in the data.
+
+```{r}
+NUT <- read.table("NutrientDocs/Nut.txt", sep="\t", header=T, stringsAsFactors=F)
+ID <- read.table("ID.txt")
+
+ID$Lake <- factor(ID$Lake, levels = c("Botan", "Delsjön", "Lerum", "Surtesjön"),labels = c("Lake 1", "Lake 2", "Lake 3", "Lake 4"))
+
+
+NUT <- select(ID, BOT, Lake, DIL) %>% 
+  distinct %>% 
+  left_join(. , NUT) 
+  
+
+head(NUT, 2)
+```
+
+We measured the dissolved inorganic nutrients a the last day of the experiment. The instrument that was used to analyse the nutrient samples gave us 4 measurements:
+
++ Nitrite (NO~2~^-^) + Nitrate (NO~3~^-^) `NO23`
++ Ammonium (NH~4~^+^) `NH4`
++ Silica (SiO~2~) `SiO2`
++ Phosphate (PO~4~^3-^) `PO4`
+
+All measures are given in µmol/l.
+
+The concentration of phosphate was always below the detection limit of 0.1 µmol/l and can hence not be included in the analysis. Silica is not utilized by bacteria and hence is not taken as response variable either. Nitrite, nitrate and ammonium however are crucial nutrients for heterotrophic bacteria. We sum them up and take the sum of the dissolve inorganic nitrogen (DIN) as response variable. 
+
+```{r}
+NUT <- NUT %>% 
+  mutate( DIN = NO23 + NH4) %>% 
+  select( BOT, Lake, DIN)
+
+```
+
+The rational why we are interested in the relationship between diversity and DIN is that biodiversity-ecosystem function theory predicts that more diverse assemblages should be able to deplete the nutrients to a lower level because of complementary nutrient use. This means however that for a positive div-EF relationship we would like to see the repose variable *increase* with diversity. For that reason, we transform the DIN variable such that higher values mean greater depletion, **not** greater nutrient concentrations. As we will use standardized variables for the correlations, we simply take the negative of the standardized DIN data as response variable. 
+
+```{r}
+scale_numeric <- function(x) {(x- mean(x, na.rm = T)) / sd(x, na.rm = T)} 
+
+NUT <- NUT %>% 
+  group_by(Lake) %>% 
+  mutate(DIN = scale_numeric(DIN)) %>% 
+  mutate(DIN = -1 * DIN) 
+
+write.table(NUT, "response_var/NUT.txt", sep = "\t")
+```
+
+To illustrate that this transformation has no influence on the correlation between the data we can use a little toy example. 
+
+```{r, echo = F, fig.width=4}
+
+DF <- data.frame(X= rnorm(500, 5, 2))
+DF$Y <- -1*DF$X + rnorm(500,1,1)
+
+ggplot(DF, aes(x=X, y= Y))+
+  geom_point()+
+  geom_smooth(method = "lm") +
+  theme_bw(base_size = 10)+
+  labs(title = "negative relationship between X and Y\nX has a mean of 5")
+
+DF %>% 
+  transform(Xst = scale(X), Yst = scale(Y)) %>% 
+  ggplot(aes(x=Xst, y= Yst))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  geom_point(aes(x = Xst, y = -Yst), colour = "red")+
+  geom_smooth(aes(x = Xst, y = -Yst), colour = "red", method = "lm")+
+  theme_bw(base_size = 10)+
+  labs(title = "black: same but with standardized data\nred: same with Y * -1")
+
+```
+

@@ -1,0 +1,85 @@
+File Name	Log Data Units	Sample ID	Patient ID	Acquisition Date	Gate	Gated Events	Total Events	X Parameter	Y Parameter	Tube	Panel	Label	Events	% Gated	% Total	
+02/06 True01.001	Linear Values	02/06 True	.	17-Sep-12	No Gate	3435	3435	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2397	69.78	69.78	
+02/06 True01.001	Linear Values	02/06 True	.	17-Sep-12	No Gate	3435	3435	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	841	24.48	24.48	
+02/06 True01.001	Linear Values	02/06 True	.	17-Sep-12	No Gate	3435	3435	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2443	71.12	71.12	
+02/06 True01.001	Linear Values	02/06 True	.	17-Sep-12	No Gate	3435	3435	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	879	25.59	25.59	
+04/06 True50.001	Linear Values	04/06 True	.	17-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3203	69.33	69.33	
+04/06 True50.001	Linear Values	04/06 True	.	17-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	930	20.13	20.13	
+04/06 True50.001	Linear Values	04/06 True	.	17-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3237	70.06	70.06	
+04/06 True50.001	Linear Values	04/06 True	.	17-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	958	20.74	20.74	
+06/06 True01.001	Linear Values	06/06 True	.	17-Sep-12	No Gate	5130	5130	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3458	67.41	67.41	
+06/06 True01.001	Linear Values	06/06 True	.	17-Sep-12	No Gate	5130	5130	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	938	18.28	18.28	
+06/06 True01.001	Linear Values	06/06 True	.	17-Sep-12	No Gate	5130	5130	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3508	68.38	68.38	
+06/06 True01.001	Linear Values	06/06 True	.	17-Sep-12	No Gate	5130	5130	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	962	18.75	18.75	
+08/06 True01.001	Linear Values	08/06 True	.	18-Sep-12	No Gate	4095	4095	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2830	69.11	69.11	
+08/06 True01.001	Linear Values	08/06 True	.	18-Sep-12	No Gate	4095	4095	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	941	22.98	22.98	
+08/06 True01.001	Linear Values	08/06 True	.	18-Sep-12	No Gate	4095	4095	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2873	70.16	70.16	
+08/06 True01.001	Linear Values	08/06 True	.	18-Sep-12	No Gate	4095	4095	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	960	23.44	23.44	
+10/06 True01.001	Linear Values	10/06 True	.	18-Sep-12	No Gate	5475	5475	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3585	65.48	65.48	
+10/06 True01.001	Linear Values	10/06 True	.	18-Sep-12	No Gate	5475	5475	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	995	18.17	18.17	
+10/06 True01.001	Linear Values	10/06 True	.	18-Sep-12	No Gate	5475	5475	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3631	66.32	66.32	
+10/06 True01.001	Linear Values	10/06 True	.	18-Sep-12	No Gate	5475	5475	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	1021	18.65	18.65	
+12/06 True50.001	Linear Values	12/06 True	.	18-Sep-12	No Gate	5310	5310	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3611	68.00	68.00	
+12/06 True50.001	Linear Values	12/06 True	.	18-Sep-12	No Gate	5310	5310	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	949	17.87	17.87	
+12/06 True50.001	Linear Values	12/06 True	.	18-Sep-12	No Gate	5310	5310	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3659	68.91	68.91	
+12/06 True50.001	Linear Values	12/06 True	.	18-Sep-12	No Gate	5310	5310	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	976	18.38	18.38	
+14/06 True 101.001	Linear Values	14/06 True 1	.	11-Sep-12	No Gate	4395	4395	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2960	67.35	67.35	
+14/06 True 101.001	Linear Values	14/06 True 1	.	11-Sep-12	No Gate	4395	4395	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	824	18.75	18.75	
+14/06 True 101.001	Linear Values	14/06 True 1	.	11-Sep-12	No Gate	4395	4395	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2992	68.08	68.08	
+14/06 True 101.001	Linear Values	14/06 True 1	.	11-Sep-12	No Gate	4395	4395	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	853	19.41	19.41	
+14/06 True225.001	Linear Values	 14/06 True2	.	11-Sep-12	No Gate	4440	4440	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3108	70.00	70.00	
+14/06 True225.001	Linear Values	 14/06 True2	.	11-Sep-12	No Gate	4440	4440	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	925	20.83	20.83	
+14/06 True225.001	Linear Values	 14/06 True2	.	11-Sep-12	No Gate	4440	4440	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3147	70.88	70.88	
+14/06 True225.001	Linear Values	 14/06 True2	.	11-Sep-12	No Gate	4440	4440	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	956	21.53	21.53	
+18/06 True25.001	Linear Values	18/06 True	.	11-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3176	68.74	68.74	
+18/06 True25.001	Linear Values	18/06 True	.	11-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	894	19.35	19.35	
+18/06 True25.001	Linear Values	18/06 True	.	11-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3218	69.65	69.65	
+18/06 True25.001	Linear Values	18/06 True	.	11-Sep-12	No Gate	4620	4620	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	926	20.04	20.04	
+20/06 True74.001	Linear Values	20/06 True	.	11-Sep-12	No Gate	4560	4560	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3168	69.47	69.47	
+20/06 True74.001	Linear Values	20/06 True	.	11-Sep-12	No Gate	4560	4560	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	866	18.99	18.99	
+20/06 True74.001	Linear Values	20/06 True	.	11-Sep-12	No Gate	4560	4560	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3212	70.44	70.44	
+20/06 True74.001	Linear Values	20/06 True	.	11-Sep-12	No Gate	4560	4560	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	891	19.54	19.54	
+22/06 True25.001	Linear Values	22/06 True	.	11-Sep-12	No Gate	4890	4890	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3315	67.79	67.79	
+22/06 True25.001	Linear Values	22/06 True	.	11-Sep-12	No Gate	4890	4890	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	936	19.14	19.14	
+22/06 True25.001	Linear Values	22/06 True	.	11-Sep-12	No Gate	4890	4890	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3355	68.61	68.61	
+22/06 True25.001	Linear Values	22/06 True	.	11-Sep-12	No Gate	4890	4890	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	965	19.73	19.73	
+24/06 True74.001	Linear Values	24/06 True	.	11-Sep-12	No Gate	5190	5190	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3376	65.05	65.05	
+24/06 True74.001	Linear Values	24/06 True	.	11-Sep-12	No Gate	5190	5190	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	911	17.55	17.55	
+24/06 True74.001	Linear Values	24/06 True	.	11-Sep-12	No Gate	5190	5190	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3397	65.45	65.45	
+24/06 True74.001	Linear Values	24/06 True	.	11-Sep-12	No Gate	5190	5190	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	934	18.00	18.00	
+26/06 True01.001	Linear Values	26/06 True	.	12-Sep-12	No Gate	4260	4260	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2829	66.41	66.41	
+26/06 True01.001	Linear Values	26/06 True	.	12-Sep-12	No Gate	4260	4260	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	913	21.43	21.43	
+26/06 True01.001	Linear Values	26/06 True	.	12-Sep-12	No Gate	4260	4260	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2866	67.28	67.28	
+26/06 True01.001	Linear Values	26/06 True	.	12-Sep-12	No Gate	4260	4260	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	945	22.18	22.18	
+28/06 True50.001	Linear Values	28/06 True	.	12-Sep-12	No Gate	4215	4215	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2892	68.61	68.61	
+28/06 True50.001	Linear Values	28/06 True	.	12-Sep-12	No Gate	4215	4215	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	859	20.38	20.38	
+28/06 True50.001	Linear Values	28/06 True	.	12-Sep-12	No Gate	4215	4215	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2929	69.49	69.49	
+28/06 True50.001	Linear Values	28/06 True	.	12-Sep-12	No Gate	4215	4215	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	889	21.09	21.09	
+30/06 True 01.001	Linear Values	30/06 True 	.	12-Sep-12	No Gate	4710	4710	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3225	68.47	68.47	
+30/06 True 01.001	Linear Values	30/06 True 	.	12-Sep-12	No Gate	4710	4710	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	939	19.94	19.94	
+30/06 True 01.001	Linear Values	30/06 True 	.	12-Sep-12	No Gate	4710	4710	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3269	69.41	69.41	
+30/06 True 01.001	Linear Values	30/06 True 	.	12-Sep-12	No Gate	4710	4710	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	965	20.49	20.49	
+02/07 True50.001	Linear Values	02/07 True	.	12-Sep-12	No Gate	4830	4830	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3264	67.58	67.58	
+02/07 True50.001	Linear Values	02/07 True	.	12-Sep-12	No Gate	4830	4830	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	947	19.61	19.61	
+02/07 True50.001	Linear Values	02/07 True	.	12-Sep-12	No Gate	4830	4830	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3308	68.49	68.49	
+02/07 True50.001	Linear Values	02/07 True	.	12-Sep-12	No Gate	4830	4830	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	963	19.94	19.94	
+07/04 True01.001	Linear Values	07/04 True	.	12-Sep-12	No Gate	5970	5970	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3950	66.16	66.16	
+07/04 True01.001	Linear Values	07/04 True	.	12-Sep-12	No Gate	5970	5970	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	914	15.31	15.31	
+07/04 True01.001	Linear Values	07/04 True	.	12-Sep-12	No Gate	5970	5970	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3991	66.85	66.85	
+07/04 True01.001	Linear Values	07/04 True	.	12-Sep-12	No Gate	5970	5970	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	949	15.90	15.90	
+07/06 True50.001	Linear Values	07/06 True	.	12-Sep-12	No Gate	5640	5640	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3631	64.38	64.38	
+07/06 True50.001	Linear Values	07/06 True	.	12-Sep-12	No Gate	5640	5640	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	962	17.06	17.06	
+07/06 True50.001	Linear Values	07/06 True	.	12-Sep-12	No Gate	5640	5640	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3675	65.16	65.16	
+07/06 True50.001	Linear Values	07/06 True	.	12-Sep-12	No Gate	5640	5640	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	993	17.61	17.61	
+08/07 True01.001	Linear Values	08/07 True	.	14-Sep-12	No Gate	3570	3570	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	2510	70.31	70.31	
+08/07 True01.001	Linear Values	08/07 True	.	14-Sep-12	No Gate	3570	3570	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	846	23.70	23.70	
+08/07 True01.001	Linear Values	08/07 True	.	14-Sep-12	No Gate	3570	3570	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	2545	71.29	71.29	
+08/07 True01.001	Linear Values	08/07 True	.	14-Sep-12	No Gate	3570	3570	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	867	24.29	24.29	
+10/07 True50.001	Linear Values	10/07 True	.	14-Sep-12	No Gate	4605	4605	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	3152	68.45	68.45	
+10/07 True50.001	Linear Values	10/07 True	.	14-Sep-12	No Gate	4605	4605	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	924	20.07	20.07	
+10/07 True50.001	Linear Values	10/07 True	.	14-Sep-12	No Gate	4605	4605	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	3196	69.40	69.40	
+10/07 True50.001	Linear Values	10/07 True	.	14-Sep-12	No Gate	4605	4605	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	950	20.63	20.63	
+12/07 True01.001	Linear Values	12/07 True	.	13-Sep-12	No Gate	6315	6315	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G1	4192	66.38	66.38	
+12/07 True01.001	Linear Values	12/07 True	.	13-Sep-12	No Gate	6315	6315	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G2	977	15.47	15.47	
+12/07 True01.001	Linear Values	12/07 True	.	13-Sep-12	No Gate	6315	6315	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G3	4237	67.09	67.09	
+12/07 True01.001	Linear Values	12/07 True	.	13-Sep-12	No Gate	6315	6315	SSC-H (Log)	FL1-H (Log)	Untitled	Untitled Acquisition Tube List	G4	1005	15.91	15.91	
